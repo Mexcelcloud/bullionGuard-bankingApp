@@ -23,6 +23,7 @@ resource "helm_release" "nginx_ingress" {
     version    = "4.12.0"
     namespace  = "ingress-nginx"
     create_namespace = true
+     timeout          = 600
 
     values = [file("${path.module}/nginx-ingress-values.yaml")]
     depends_on = [ aws_eks_node_group.eks_node_group ]
@@ -43,6 +44,7 @@ resource "helm_release" "cert_manager" {
     version    = "1.14.5"
     namespace  = "cert-manager"
     create_namespace = true
+    timeout          = 600
     set {
         name  = "installCRDs"
         value = "true"
@@ -57,6 +59,7 @@ resource "helm_release" "argocd" {
     chart            = "argo-cd"
     version          = "5.51.6"
     namespace        = "argocd"
+    timeout          = 600
     create_namespace = true
     values = [file("${path.module}/argocd-values.yaml")]
     depends_on = [ helm_release.nginx_ingress, helm_release.cert_manager]
