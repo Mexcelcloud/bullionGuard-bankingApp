@@ -85,6 +85,13 @@ jobs:
           kubectl wait --for=condition=ready node \
             --all --timeout=300s
 
+      - name: Wait for system pods to be ready
+        run: |
+          echo "Waiting 90 seconds for cluster to fully stabilize..."
+          sleep 90
+          kubectl get nodes
+          kubectl get pods -n kube-system
+
       - name: Install Nginx Ingress
         run: |
           helm repo add ingress-nginx \
@@ -95,9 +102,14 @@ jobs:
             --namespace ingress-nginx \
             --create-namespace \
             --version 4.12.0 \
-            --timeout 10m \
-            --wait \
+            --timeout 15m \
+            --wait=false \
             -f aws-three-tier-terraform-deploy/module-eks/nginx-ingress-values.yaml
+          echo "Waiting for nginx pods to be running..."
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/name=ingress-nginx \
+            -n ingress-nginx \
+            --timeout=600s
 
       - name: Install Cert-Manager
         run: |
