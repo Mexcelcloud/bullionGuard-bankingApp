@@ -12,7 +12,7 @@ permissions:
 jobs:
   deploy-iac:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     env:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -68,23 +68,60 @@ jobs:
         run: terraform apply -auto-approve
         working-directory: aws-three-tier-terraform-deploy
 
+      - name: Install kubectl
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x ./kubectl
+          sudo mv ./kubectl /usr/local/bin/kubectl
 
-        ## Note this part depends on the mannaul Dns route 53 to namecheap or godaddy setup.
-        #===================================================================================
-      # - name: 'install kubectl'
-      #   run: |
-      #     curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      #     chmod +x ./kubectl
-      #     sudo mv ./kubectl /usr/local/bin/kubectl
+      - name: Configure kubectl
+        run: |
+          aws eks update-kubeconfig \
+            --name production-bullionguard-cluster \
+            --region us-east-1
 
-      # - name: 'authenticate to EKS Cluster'
-      #   run: aws eks update-kubeconfig --name ${{ vars.EKS_CLUSTER_NAME }} --region us-east-1
-      
-      # - name: 'Deploying the ClusterIssuer to EKS'
-      #   run: kubectl apply -f ClusterIssuer.yaml
+      - name: Wait for nodes to be ready
+        run: |
+          kubectl wait --for=condition=ready node \
+            --all --timeout=300s
 
-      # - name: 'Deploying argocd ingress rule to EKS'
-      #   run: kubectl apply -f ingress-argocd.yaml -n argocd
+      - name: Install Nginx Ingress
+        run: |
+          helm repo add ingress-nginx \
+            https://kubernetes.github.io/ingress-nginx
+          helm repo update
+          helm upgrade --install nginx-ingress \
+            ingress-nginx/ingress-nginx \
+            --namespace ingress-nginx \
+            --create-namespace \
+            --version 4.12.0 \
+            --timeout 10m \
+            --wait \
+            -f aws-three-tier-terraform-deploy/module-eks/nginx-ingress-values.yaml
 
-      #- name: Terraform Destroy
-      #  run: terraform destroy -auto-approve 
+      - name: Install Cert-Manager
+        run: |
+          helm repo add jetstack https://charts.jetstack.io
+          helm repo update
+          helm upgrade --install cert-manager \
+            jetstack/cert-manager \
+            --namespace cert-manager \
+            --create-namespace \
+            --version 1.14.5 \
+            --set installCRDs=true \
+            --timeout 10m \
+            --wait
+
+      - name: Install ArgoCD
+        run: |
+          helm repo add argo \
+            https://argoproj.github.io/argo-helm
+          helm repo update
+          helm upgrade --install argocd \
+            argo/argo-cd \
+            --namespace argocd \
+            --create-namespace \
+            --version 5.51.6 \
+            --timeout 10m \
+            --wait \
+            -f aws-three-tier-terraform-deploy/module-eks/argocd-values.yaml
