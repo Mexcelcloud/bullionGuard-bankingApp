@@ -3,7 +3,7 @@ kind: ConfigMap
 metadata:
   name: bank-config
 data:
-  DB_HOST: "production-mysql-db.c61seok4u931.us-east-1.rds.amazonaws.com"
+  DB_HOST: "production-mysql-db.cmhmc4wm4byk.us-east-1.rds.amazonaws.com"
   DB_PORT: "3306"
-  DB_NAME: "online_banking_system"
-  REACT_APP_API_URL: http://backend-service:8080
+  DB_NAME: "bullionguard_db"
+  REACT_APP_API_URL: "http://api.bullionguard.online"
